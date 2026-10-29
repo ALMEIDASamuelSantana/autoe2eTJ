@@ -1,3 +1,5 @@
+import time
+import traceback
 from typing import Any, Self
 
 from selenium.webdriver.remote.webdriver import WebDriver
@@ -5,7 +7,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from autoe2e.crawler.config import Config
 from autoe2e.crawler.state import State, StateMachine
 from autoe2e.crawler.action import Action
-from autoe2e.utils import Queue
+from autoe2e.utils import Queue, logger
 
 
 class CrawlContext:
@@ -33,9 +35,47 @@ class CrawlContext:
 
     
     def load_state(self, state: State) -> None:
-        self.driver.get(self.config.base_url)
-        for action in state.crawl_path.get_actions():
-            action.execute(self.driver)
+        state_id = state.get_id()
+        actions = state.crawl_path.get_actions()
+        started_at = time.perf_counter()
+        phase = 'opening base URL'
+        logger.info(
+            f'Starting state replay: state={state_id}, '
+            f'url={self.config.base_url}, actions={len(actions)}'
+        )
+
+        try:
+            self.driver.get(self.config.base_url)
+            logger.info(
+                f'Opened base URL in {time.perf_counter() - started_at:.2f}s'
+            )
+
+            for index, action in enumerate(actions, start=1):
+                phase = (
+                    f'replaying action {index}/{len(actions)} '
+                    f'(type={action.get_type().get_value()}, id={action.get_id()})'
+                )
+                action_started_at = time.perf_counter()
+                logger.info(f'Starting state replay {phase}')
+                action.execute(self.driver)
+                logger.info(
+                    f'Completed state replay action {index}/{len(actions)} '
+                    f'in {time.perf_counter() - action_started_at:.2f}s'
+                )
+
+            logger.info(
+                f'Completed state replay: state={state_id}, '
+                f'actions={len(actions)}, '
+                f'duration={time.perf_counter() - started_at:.2f}s'
+            )
+        except Exception as error:
+            logger.error(
+                'State replay failed',
+                f'state={state_id}, phase={phase}, '
+                f'duration={time.perf_counter() - started_at:.2f}s, '
+                f'error={error!r}\n{traceback.format_exc()}'
+            )
+            raise
     
     
     def create_state_from_driver(self, actions: list[Action]) -> State:

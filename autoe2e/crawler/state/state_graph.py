@@ -9,6 +9,7 @@ class StateGraph(Generic[S, A]):
     def __init__(self):
         self.initial_state: S | None = None
         self.states: dict[str, S] = {}
+        self.state_doms: set[str] = set()
         self.adjacency_list: dict[str, dict[A, str]] = {}
         self.transpose_adjacency_list: dict[str, dict[A, str]] = {}
     
@@ -19,6 +20,7 @@ class StateGraph(Generic[S, A]):
         '''
         self.initial_state = None
         self.states.clear()
+        self.state_doms.clear()
         self.adjacency_list.clear()
         self.transpose_adjacency_list.clear()
     
@@ -37,7 +39,7 @@ class StateGraph(Generic[S, A]):
         Sets the initial state of the state graph.
         '''
         self.initial_state = state
-        self.states[state.get_id()] = state
+        self.add_state(state)
     
     
     def get_state(self, state_id: str) -> S | None:
@@ -97,6 +99,10 @@ class StateGraph(Generic[S, A]):
         
         if state.get_id() not in self.states:
             self.states[state.get_id()] = state
+            self.state_doms.add(state.dom)
+
+    def contains_state(self, state_id: str, dom: str) -> bool:
+        return state_id in self.states or dom in self.state_doms
     
     
     def add_action(self, action: A, source_state: S, target_state: S) -> None:

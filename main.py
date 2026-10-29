@@ -13,10 +13,6 @@ from autoe2e.manual_ndd import *
 APP_NAME = os.getenv('APP_NAME', 'PETCLINIC')
 
 
-action_func_db.delete_many({ 'app': APP_NAME })
-func_db.delete_many({ 'app': APP_NAME })
-
-
 crawl_context: CrawlContext = CrawlContext()
 crawl_context = crawl_context.set_temp_var('config_path', f'./configs/{APP_NAME}.json')
 
@@ -32,6 +28,9 @@ driver = initialize_driver(config_obj)
 crawl_context = crawl_context.set_driver(driver)
 
 crawl_context = initialize_variables(crawl_context)
+
+action_func_db.delete_many({ 'app': APP_NAME })
+func_db.delete_many({ 'app': APP_NAME })
 
 
 LOOP_COUNTER = 0
@@ -113,26 +112,30 @@ while len(crawl_context.crawl_queue) > 0:
                     action_depth=len(state.crawl_path),
                     action_type="SINGLE"
                 )
-        
+
             if len(current_state.crawl_path) > 0:
                 logger.info('Extracting double action scenarios')
-                functionalities = extract_action_functionalities(current_state, action, current_state.crawl_path.get_action(-1))
+                functionalities = extract_action_functionalities(
+                    current_state,
+                    action,
+                    current_state.crawl_path.get_action(-1)
+                )
                 if len(functionalities) != 0:
                     functionality_ids = insert_functionalities(functionalities)
                     insert_action_functionality(
                         func_ids=functionality_ids,
                         state_id=state.get_id(StateIdEvaluator.BY_ACTIONS),
                         state_url=state.url,
-                        prev_state_id=state.crawl_path.get_state(-1).get_id(StateIdEvaluator.BY_ACTIONS) if len(state.crawl_path) > 0 else None,
+                        prev_state_id=state.crawl_path.get_state(-1).get_id(StateIdEvaluator.BY_ACTIONS),
                         action_id=action.get_id(),
-                        prev_action_id=state.crawl_path.get_action(-1).get_id() if len(state.crawl_path) > 0 else None,
+                        prev_action_id=state.crawl_path.get_action(-1).get_id(),
                         action_test_id=action.element.test_id,
                         action_depth=len(state.crawl_path),
                         action_type="DOUBLE"
                     )
-                
+
                 logger.info('Updating action scores')
-    
+
                 update_functionality_score(
                     current_state.crawl_path.get_state(-1),
                     current_state.crawl_path.get_action(-1),
@@ -158,6 +161,9 @@ crawl_context.driver.quit()
 states_converted = {}
 
 for state_id, state_obj in crawl_context.state_machine.state_graph.states.items():
+    crawl_path = state_obj.crawl_path
+    previous_state = crawl_path.get_state(-1) if len(crawl_path) > 0 else None
+    previous_action = crawl_path.get_action(-1) if len(crawl_path) > 0 else None
     states_converted[state_id] = {
         'url': state_obj.url,
         'context': state_obj.context,
@@ -168,8 +174,8 @@ for state_id, state_obj in crawl_context.state_machine.state_graph.states.items(
                 'testId': a.element.test_id
             } for a in state_obj.get_actions()
         ],
-        'prev_state': state_obj.crawl_path.get_state(-1).get_id() if len(state.crawl_path) > 0 else None,
-        'prev_action': state_obj.crawl_path.get_action(-1).get_id() if len(state.crawl_path) > 0 else None,
+        'prev_state': previous_state.get_id(StateIdEvaluator.BY_ACTIONS) if previous_state else None,
+        'prev_action': previous_action.get_id() if previous_action else None,
     }
 
 
@@ -182,10 +188,12 @@ for state_id, neighbor_list in crawl_context.state_machine.state_graph.adjacency
         adj_list_converted[state_id][action_obj.get_id()] = n_state_id
 
 
-json.dump(
-    {
-        'nodes': states_converted,
-        'edges': adj_list_converted
-    },
-    open(f'./report/{APP_NAME}.json', 'w+')
-)
+os.makedirs('./report', exist_ok=True)
+with open(f'./report/{APP_NAME}.json', 'w', encoding='utf-8') as report_file:
+    json.dump(
+        {
+            'nodes': states_converted,
+            'edges': adj_list_converted
+        },
+        report_file
+    )

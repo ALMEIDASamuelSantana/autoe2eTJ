@@ -128,11 +128,10 @@ def flag_action_to_stop_execution(state: State, action: Action, feature_id: str 
 
 
 def is_state_in_graph(crawl_context: CrawlContext, state: State) -> bool:
-    if state.get_id(StateIdEvaluator.BY_ACTIONS) in crawl_context.state_machine.state_graph.states:
-        return True
-    if state in crawl_context.state_machine.state_graph.states.values():
-        return True
-    return False
+    return crawl_context.state_machine.state_graph.contains_state(
+        state.get_id(StateIdEvaluator.BY_ACTIONS),
+        state.dom
+    )
 
 
 def explore_connected_states(crawl_context: CrawlContext, state: State):
@@ -206,20 +205,24 @@ def extract_state_action_features(crawl_context: CrawlContext, state: State):
     
         if len(state.crawl_path) > 0:
             logger.info('Extracting double action scenarios')
-            functionalities = extract_action_functionalities(state, action, state.crawl_path.get_action(-1))
+            functionalities = extract_action_functionalities(
+                state,
+                action,
+                state.crawl_path.get_action(-1)
+            )
             if len(functionalities) != 0:
                 functionality_ids = insert_functionalities(functionalities)
                 insert_action_functionality(
                     func_ids=functionality_ids,
                     state_id=state.get_id(StateIdEvaluator.BY_ACTIONS),
                     state_url=state.url,
-                    prev_state_id=state.crawl_path.get_state(-1).get_id(StateIdEvaluator.BY_ACTIONS) if len(state.crawl_path) > 0 else None,
+                    prev_state_id=state.crawl_path.get_state(-1).get_id(StateIdEvaluator.BY_ACTIONS),
                     action_id=action.get_id(),
                     action_test_id=action.element.test_id,
                     action_depth=len(state.crawl_path),
                     action_type="DOUBLE"
                 )
-            
+
             logger.info('Updating action scores')
 
             update_functionality_score(
@@ -230,7 +233,7 @@ def extract_state_action_features(crawl_context: CrawlContext, state: State):
             )
 
             logger.info('Action scores updated')
-        
+
         logger.info('Marking final functionalities')
     
         mark_final_functionalities(state, action)

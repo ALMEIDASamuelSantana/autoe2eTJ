@@ -21,6 +21,15 @@ Then you can run the project using the following command:
 python main.py
 ```
 
+To select Google Gemini when multiple provider keys are configured, set
+`AUTOE2E_LLM_PROVIDER=google` in `.env`. Optionally set `AUTOE2E_GEMINI_MODEL`
+to choose a Gemini model, for example `gemini-3.5-flash`.
+
+## Output
+After a successful run, the project writes `./report/<APP_NAME>.json`. The JSON
+contains `nodes` (the discovered states and their actions) and `edges` (the
+transitions between states), keyed by state and action identifiers.
+
 ## LLM Prompts
 The prompts used for different parts of our workflow is available in `./autoe2e/prompts.py` file. We use the following prompt for context extraction:
 

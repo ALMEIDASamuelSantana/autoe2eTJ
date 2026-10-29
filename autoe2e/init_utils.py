@@ -34,6 +34,7 @@ def initialize_variables(crawl_context: CrawlContext) -> CrawlContext:
     
     initial_state: State = crawl_context.create_state_from_driver(actions)
     
+    crawl_context.state_machine.set_initial_state(initial_state)
     crawl_context.crawl_queue.enqueue(initial_state)
     
     return crawl_context

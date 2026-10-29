@@ -146,3 +146,4 @@ def create_finality_user_messages(context, action_element, functionalities):
             "text": f'The context of the webpage is: {context}\nThe action element is: {clean_children_html(action_element)}\nThe list of functionalities:\n{functionalities}'
         }
     ])
+
