@@ -25,6 +25,19 @@ To select Google Gemini when multiple provider keys are configured, set
 `AUTOE2E_LLM_PROVIDER=google` in `.env`. Optionally set `AUTOE2E_GEMINI_MODEL`
 to choose a Gemini model, for example `gemini-3.5-flash`.
 
+The number of concurrent action analyses defaults to four. Set
+`AUTOE2E_LLM_WORKERS=1` for a sequential baseline, then compare it with
+`AUTOE2E_LLM_WORKERS=4`:
+
+```bash
+AUTOE2E_LLM_WORKERS=1 python main.py
+AUTOE2E_LLM_WORKERS=4 python main.py
+```
+
+Each run logs its total crawling time. Use the same application and
+configuration for both runs, and repeat each run a few times; API latency and
+model responses can vary.
+
 ## Output
 After a successful run, the project writes `./report/<APP_NAME>.json`. The JSON
 contains `nodes` (the discovered states and their actions) and `edges` (the

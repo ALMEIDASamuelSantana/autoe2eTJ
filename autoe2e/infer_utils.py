@@ -1,8 +1,12 @@
 import os
 import json
+import hashlib
+import threading
+import unicodedata
 
 from dotenv import load_dotenv
 from bson.objectid import ObjectId
+from pymongo.errors import DuplicateKeyError
 
 from autoe2e.utils import logger
 
@@ -41,6 +45,16 @@ from autoe2e.mongo_utils import (
 
 
 load_dotenv()
+
+_functionality_write_lock = threading.Lock()
+
+
+def _normalized_functionality_text(text: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+
+
+def _stable_key(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def extract_state_context(
@@ -194,57 +208,102 @@ def map_similar_func_to_exact_match(func_info):
 
 
 def no_match_insert(match):
-    res = func_db.insert_one({
-        "app": os.getenv("APP_NAME"),
+    app_name = os.getenv("APP_NAME")
+    text_key = _stable_key(_normalized_functionality_text(match["text"]))
+    document = {
+        "app": app_name,
         "text": match['text'],
+        "text_key": text_key,
         "embedding": match['embedding'],
         "score": geometric_score(match['rank']),
         "final": False,
         "executable": True
-    })
-    return res.inserted_id
+    }
+
+    try:
+        result = func_db.update_one(
+            {"app": app_name, "text_key": text_key},
+            {"$setOnInsert": document},
+            upsert=True,
+        )
+    except DuplicateKeyError:
+        existing = func_db.find_one({"app": app_name, "text_key": text_key})
+        if existing is None:
+            raise
+        return existing["_id"]
+
+    if result.upserted_id is not None:
+        return result.upserted_id
+
+    existing = func_db.find_one({"app": app_name, "text_key": text_key})
+    if existing is None:
+        raise RuntimeError("Functionality upsert completed without a matching document")
+    return existing["_id"]
 
 
 def match_update(match):
-    # update the text for the initial match
-    func_db.update_one(
-        filter={
-            'app': os.getenv("APP_NAME"),
-            '_id': match['match_id'][0]
-        },
-        update={
-            '$set': {
-                'text': match['combined_text'],
-                'embedding': openai_embeddings.embed_query(match['combined_text'])
-            }
-        },
-        upsert=False
-    )
+    app_name = os.getenv("APP_NAME")
+    primary_id = match["match_id"][0]
+    combined_text = match["combined_text"]
+    text_key = _stable_key(_normalized_functionality_text(combined_text))
+    embedding = openai_embeddings.embed_query(combined_text)
+    existing = func_db.find_one({
+        "app": app_name,
+        "text_key": text_key,
+        "_id": {"$ne": primary_id},
+    })
 
-    if len(match['match_id']) > 1:
-        # remove other documents as they are duplicates of the initial one
-        func_db.delete_many(
-            {
-                'app': { '$eq': os.getenv("APP_NAME") },
-                '_id': { '$in': match['match_id'][1:] }
-            }
+    target_id = existing["_id"] if existing is not None else primary_id
+    try:
+        func_db.update_one(
+            {"app": app_name, "_id": target_id},
+            {"$set": {
+                "text": combined_text,
+                "text_key": text_key,
+                "embedding": embedding,
+            }},
+            upsert=False,
         )
-    
-        # update action-function pointers to point to the first match
+    except DuplicateKeyError:
+        existing = func_db.find_one({
+            "app": app_name,
+            "text_key": text_key,
+            "_id": {"$ne": target_id},
+        })
+        if existing is None:
+            raise
+        target_id = existing["_id"]
+        func_db.update_one(
+            {"app": app_name, "_id": target_id},
+            {"$set": {
+                "text": combined_text,
+                "embedding": embedding,
+            }},
+            upsert=False,
+        )
+
+    duplicate_ids = [
+        functionality_id
+        for functionality_id in match["match_id"]
+        if functionality_id != target_id
+    ]
+    if duplicate_ids:
         action_func_db.update_many(
             filter={
-                'app': { '$eq': os.getenv("APP_NAME") },
-                'func_pointer': { '$in': list(map(str, match['match_id'][1:])) }
+                "app": app_name,
+                "func_pointer": {"$in": list(map(str, duplicate_ids))},
             },
-            update={
-                '$set': {
-                    'func_pointer': str(match['match_id'][0])
-                }
-            },
-            upsert=False
+            update={"$set": {"func_pointer": str(target_id)}},
+            upsert=False,
         )
-    
-    return match['match_id'][0]
+        func_db.delete_many(
+            {
+                "app": app_name,
+                "_id": {"$in": duplicate_ids},
+            }
+        )
+
+    return target_id
 
 
 def update_databases_with_match(match):
@@ -255,21 +314,16 @@ def update_databases_with_match(match):
 
 def insert_functionalities(functionalities: list[str]):
     embeddings = openai_embeddings.embed_documents(functionalities)
+    insertion_ids = []
 
-    similar_funcs = map(query_similar_functionalities, embeddings)
+    for rank, (text, embedding) in enumerate(zip(functionalities, embeddings)):
+        with _functionality_write_lock:
+            similar_funcs = query_similar_functionalities(embedding)
+            match = map_similar_func_to_exact_match(
+                (rank, text, embedding, similar_funcs)
+            )
+            insertion_ids.append(update_databases_with_match(match))
 
-    matches = map(
-        map_similar_func_to_exact_match,
-        zip(
-            range(len(functionalities)),
-            functionalities,
-            embeddings,
-            similar_funcs
-        )
-    )
-
-    insertion_ids = list(map(update_databases_with_match, matches))
-    
     return insertion_ids
 
 
@@ -284,9 +338,11 @@ def insert_action_functionality(
     action_depth: int,
     action_type: str = "SINGLE"
 ):
-    documents = [
-        {
-            "app": os.getenv("APP_NAME"),
+    app_name = os.getenv("APP_NAME")
+
+    for index, func_id in enumerate(func_ids):
+        document = {
+            "app": app_name,
             "url": state_url,
             "state": state_id,
             "prev_state": prev_state_id,
@@ -295,14 +351,38 @@ def insert_action_functionality(
             "test_id": action_test_id,
             "depth": action_depth,
             "type": action_type,
-            "rank_score": geometric_score(i),
-            "func_pointer": str(func_ids[i]),
+            "rank_score": geometric_score(index),
+            "func_pointer": str(func_id),
             "final": False,
             "should_execute": True
-        } for i in range(len(func_ids))
-    ]
+        }
+        relation_identity = json.dumps(
+            [
+                app_name,
+                state_id,
+                prev_state_id,
+                action_id,
+                prev_action_id,
+                str(func_id),
+                action_type,
+            ],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        document["dedupe_key"] = _stable_key(relation_identity)
 
-    action_func_db.insert_many(documents)
+        try:
+            action_func_db.update_one(
+                {"app": app_name, "dedupe_key": document["dedupe_key"]},
+                {"$setOnInsert": document},
+                upsert=True,
+            )
+        except DuplicateKeyError:
+            if action_func_db.find_one({
+                "app": app_name,
+                "dedupe_key": document["dedupe_key"],
+            }) is None:
+                raise
 
 
 def update_functionality_score(prev_state, prev_action, curr_state, curr_action):

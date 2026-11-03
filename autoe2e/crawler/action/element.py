@@ -14,6 +14,7 @@ class Element:
     def __init__(self, driver: WebDriver, element: WebElement):
         self._id: Identification | None = None
         self.outerHTML = element.get_attribute("outerHTML")
+        self.tag_name = element.tag_name
         self.test_id = element.get_attribute("data-testid") or element.get_attribute("data-formid")
         self.set_identification(driver, element)
     

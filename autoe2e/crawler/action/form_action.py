@@ -1,6 +1,8 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import ElementClickInterceptedException
 
 from autoe2e.crawler.action.action import Action, ActionType
 from autoe2e.crawler.action.element import Element
@@ -36,19 +38,18 @@ class FormAction(Action):
         
         element: WebElement = self.element.get(driver)
         
-        try:
-            form_id = element.get_attribute('data-formid')
-            
-            for param_key, param_value in self.params.items():
-                element.find_element(By.XPATH, f".//*[@data-testid='{param_key}']").send_keys(param_value)
-            
-            submit_button = driver.find_element(By.XPATH, f".//*[@data-submitid='{form_id}']")
-            
-            pair = (driver.current_url, get_element_xpath(driver, submit_button))
-            
-            if pair not in FORBIDDEN_ACTIONS:
+        form_id = element.get_attribute('data-formid')
+        
+        for param_key, param_value in self.params.items():
+            element.find_element(By.XPATH, f".//*[@data-testid='{param_key}']").send_keys(param_value)
+        
+        submit_button = driver.find_element(By.XPATH, f".//*[@data-submitid='{form_id}']")
+        
+        pair = (driver.current_url, get_element_xpath(driver, submit_button))
+        
+        if pair not in FORBIDDEN_ACTIONS:
+            try:
                 submit_button.click()
-        except Exception as e:
-            print(e)
-            print("waiting for use to perform the form task")
-            input("Press Enter to continue...")
+            except ElementClickInterceptedException:
+                driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+                submit_button.click()
