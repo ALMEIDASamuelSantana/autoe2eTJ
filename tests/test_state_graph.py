@@ -55,4 +55,4 @@ def test_initialize_variables_registers_initial_state(monkeypatch) -> None:
         initial_state.get_id(),
         initial_state.dom
     )
-    assert crawl_context.crawl_queue.dequeue() is initial_state
+    assert crawl_context.crawl_stack.pop() is initial_state

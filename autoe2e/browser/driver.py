@@ -17,7 +17,11 @@ class DriverContainer(AbstractSingleton):
     def __init__(self, config: Config):
         options = Options()
         options.binary_location = os.getenv("CHROME_BINARY", "/usr/bin/google-chrome")
-        options.add_argument("--headless=new")
+        headless = os.getenv("AUTOE2E_HEADLESS", "true").strip().lower()
+        if headless not in {"true", "false"}:
+            raise ValueError("AUTOE2E_HEADLESS must be 'true' or 'false'")
+        if headless == "true":
+            options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         remote_url = os.getenv("SELENIUM_REMOTE_URL")

@@ -1,3 +1,5 @@
+import math
+import os
 import time
 import traceback
 from typing import Any, Self
@@ -7,7 +9,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from autoe2e.crawler.config import Config
 from autoe2e.crawler.state import State, StateMachine
 from autoe2e.crawler.action import Action
-from autoe2e.utils import Queue, logger
+from autoe2e.utils import Stack, logger
 
 
 class CrawlContext:
@@ -15,9 +17,14 @@ class CrawlContext:
         # change to config later
         self.config: Config | None = None
         self.driver: WebDriver | None = None
-        self.crawl_queue: Queue[State] = Queue()
+        self.crawl_stack: Stack[State] = Stack()
         self.state_machine: StateMachine = StateMachine()
         self.temp_vars: dict = {}
+        self.action_delay_seconds = float(
+            os.getenv("AUTOE2E_ACTION_DELAY_SECONDS", "0")
+        )
+        if not math.isfinite(self.action_delay_seconds) or self.action_delay_seconds < 0:
+            raise ValueError("AUTOE2E_ACTION_DELAY_SECONDS must be a finite non-negative number")
     
     
     def set_config(self, config: Config) -> Self:
@@ -57,7 +64,7 @@ class CrawlContext:
                 )
                 action_started_at = time.perf_counter()
                 logger.info(f'Starting state replay {phase}')
-                action.execute(self.driver)
+                self.execute_action(action)
                 logger.info(
                     f'Completed state replay action {index}/{len(actions)} '
                     f'in {time.perf_counter() - action_started_at:.2f}s'
@@ -76,7 +83,12 @@ class CrawlContext:
                 f'error={error!r}\n{traceback.format_exc()}'
             )
             raise
-    
+
+    def execute_action(self, action: Action) -> None:
+        action.execute(self.driver)
+        if self.action_delay_seconds:
+            time.sleep(self.action_delay_seconds)
+
     
     def create_state_from_driver(self, actions: list[Action]) -> State:
         state: State = State(

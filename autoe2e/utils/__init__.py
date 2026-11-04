@@ -12,6 +12,7 @@ collections.Callable = collections.abc.Callable
 from autoe2e.utils.singleton import Singleton, AbstractSingleton
 from autoe2e.utils.hash import hash_string
 from autoe2e.utils.queue import Queue
+from autoe2e.utils.stack import Stack
 from autoe2e.utils.logger import logger
 
 
@@ -113,6 +114,7 @@ __all__ = [
     'AbstractSingleton',
     'hash_string',
     'Queue',
+    'Stack',
     'logger',
     'png_to_base64',
     'extract_response_content',

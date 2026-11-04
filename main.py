@@ -93,9 +93,13 @@ def process_action_analysis_async(current_state: State, action: Action, state: S
         raise
 
 # Loop principal de crawling
-while len(crawl_context.crawl_queue) > 0:
-    state: State = crawl_context.crawl_queue.dequeue()
-    logger.info(f"Visiting state {state.get_id(StateIdEvaluator.BY_ACTIONS)}")
+while len(crawl_context.crawl_stack) > 0:
+    state: State = crawl_context.crawl_stack.pop()
+    logger.info(
+        f"DFS visiting depth={len(state.crawl_path)} "
+        f"state={state.get_id(StateIdEvaluator.BY_ACTIONS)} "
+        f"pending={len(crawl_context.crawl_stack)}"
+    )
     crawl_context.state_machine.set_current_state(state)
     
     current_state: State = crawl_context.state_machine.get_current_state()
@@ -134,7 +138,7 @@ while len(crawl_context.crawl_queue) > 0:
                 values = create_form_filling_values(action)
                 action.set_params(values)
             
-            action.execute(crawl_context.driver)
+            crawl_context.execute_action(action)
             state_modified = True
 
             # Extração de ações candidatas otimizada com menos retries cegos
@@ -152,9 +156,15 @@ while len(crawl_context.crawl_queue) > 0:
             else:
                 new_state: State = crawl_context.create_state_from_driver(new_actions)
                 if not is_state_in_graph(crawl_context, new_state):
-                    print('Adding state', new_state.get_id(StateIdEvaluator.BY_ACTIONS))
-                    crawl_context.crawl_queue.enqueue(new_state)
+                    logger.info(
+                        f"DFS discovered state={new_state.get_id(StateIdEvaluator.BY_ACTIONS)} "
+                        f"from action={action.get_id()}"
+                    )
+                    crawl_context.crawl_stack.push(new_state)
                     crawl_context.state_machine.add_state_from_current_state(new_state, action)
+                    logger.info(
+                        f"DFS pushed state; pending={len(crawl_context.crawl_stack)}"
+                    )
                 else:
                     should_extract_func = False
 
@@ -189,8 +199,8 @@ for state_id, state_obj in crawl_context.state_machine.state_graph.states.items(
                 'testId': a.element.test_id
             } for a in state_obj.get_actions()
         ],
-        'prev_state': state_obj.crawl_path.get_state(-1).get_id() if len(state.crawl_path) > 0 else None,
-        'prev_action': state_obj.crawl_path.get_action(-1).get_id() if len(state.crawl_path) > 0 else None,
+        'prev_state': state_obj.crawl_path.get_state(-1).get_id() if len(state_obj.crawl_path) > 0 else None,
+        'prev_action': state_obj.crawl_path.get_action(-1).get_id() if len(state_obj.crawl_path) > 0 else None,
     }
 
 adj_list_converted = {}

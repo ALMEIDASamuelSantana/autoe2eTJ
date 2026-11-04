@@ -25,6 +25,11 @@ To select Google Gemini when multiple provider keys are configured, set
 `AUTOE2E_LLM_PROVIDER=google` in `.env`. Optionally set `AUTOE2E_GEMINI_MODEL`
 to choose a Gemini model, for example `gemini-3.5-flash`.
 
+To watch the browser while it crawls, run it in an environment with a display
+and set `AUTOE2E_HEADLESS=false`. Set
+`AUTOE2E_ACTION_DELAY_SECONDS=0.5` to pause after each action; the default is
+`0` (no delay). The logs also show each DFS visit's depth and pending stack size.
+
 The number of concurrent action analyses defaults to four. Set
 `AUTOE2E_LLM_WORKERS=1` for a sequential baseline, then compare it with
 `AUTOE2E_LLM_WORKERS=4`:
@@ -42,6 +47,9 @@ model responses can vary.
 After a successful run, the project writes `./report/<APP_NAME>.json`. The JSON
 contains `nodes` (the discovered states and their actions) and `edges` (the
 transitions between states), keyed by state and action identifiers.
+
+The crawler explores states depth-first (DFS): it follows a discovered path to
+its deepest reachable state before exploring other pending paths.
 
 ## LLM Prompts
 The prompts used for different parts of our workflow is available in `./autoe2e/prompts.py` file. We use the following prompt for context extraction:
