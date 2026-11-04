@@ -48,6 +48,16 @@ After a successful run, the project writes `./report/<APP_NAME>.json`. The JSON
 contains `nodes` (the discovered states and their actions) and `edges` (the
 transitions between states), keyed by state and action identifiers.
 
+To create an interactive tree visualization, run:
+
+```bash
+python scripts/visualize_report.py report/PETCLINIC.json
+```
+
+Open `report/PETCLINIC.html` in a browser. The page supports search, zoom,
+panning, branch focus, and state details. For another report, pass its path;
+the HTML file is written alongside the JSON unless `--output` is specified.
+
 The crawler explores states depth-first (DFS): it follows a discovered path to
 its deepest reachable state before exploring other pending paths.
 
