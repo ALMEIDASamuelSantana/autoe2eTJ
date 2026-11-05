@@ -58,8 +58,22 @@ Open `report/PETCLINIC.html` in a browser. The page supports search, zoom,
 panning, branch focus, and state details. For another report, pass its path;
 the HTML file is written alongside the JSON unless `--output` is specified.
 
-The crawler explores states depth-first (DFS): it follows a discovered path to
-its deepest reachable state before exploring other pending paths.
+To build a click-path map of detected functionalities, with similar names
+grouped while preserving their original LLM descriptions, run:
+
+```bash
+python scripts/build_functionality_map.py --report report/PETCLINIC.json
+```
+
+The map is written to `report/PETCLINIC_funcionalidades-caminhos.html`. It reads
+the app's final functionality records from MongoDB and links each grouped name
+to its recorded actions and report states. Menu-opening actions are shown as
+navigation steps, separate from user-facing functionality.
+
+The crawler explores states depth-first (DFS) using a LIFO stack. Logs identify
+the traversal strategy and each `DFS pop (LIFO)` / `DFS push state` operation;
+the most recently discovered pending state is visited next, before older
+pending paths.
 
 ## LLM Prompts
 The prompts used for different parts of our workflow is available in `./autoe2e/prompts.py` file. We use the following prompt for context extraction:

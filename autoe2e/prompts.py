@@ -25,6 +25,8 @@ The previous action was: {previous_action}
 FUNCTIONALITY_EXTRACTION_SYSTEM_PROMPT = """
 Given a webpage's purpose and content (webpage_context), the outerHTML of an action element (action_element), and optionally the user's last action that led to this state, your task is to infer the most likely functionalities associated with that action element.
 These functionalities should be user-centric actions that produce measurable outcomes within the application, are testable through E2E testing, and are essential to the presence of the action element.
+Do not report navigation steps as final functionalities: opening or expanding a menu, reaching a page, or opening a form is only a step unless the interaction itself produces a meaningful user outcome. Return an empty array for menu-only or navigation-only actions.
+Use a concise, consistent verb-object name. Describe the user's goal (for example, "search owners" or "create veterinarian") rather than restating the button text. Do not return multiple phrasings of the same goal.
 
 Output Format:
 Your is enclosed in two tags:
@@ -47,6 +49,7 @@ Your is enclosed in two tags:
 
 SIMILARITY_SYSTEM_PROMPT = """
 Given a description of a software feature and a list of other software feature descriptions, your task is to determine if the initial feature matches any features in the list.
+Merge only features that describe the same user goal. Do not merge a navigation step such as opening a menu with a feature reached from that menu. When features match, use a short, consistent verb-object description.
 
 Output format:
 Your analysis is enclosed in two tags:
@@ -146,4 +149,3 @@ def create_finality_user_messages(context, action_element, functionalities):
             "text": f'The context of the webpage is: {context}\nThe action element is: {clean_children_html(action_element)}\nThe list of functionalities:\n{functionalities}'
         }
     ])
-

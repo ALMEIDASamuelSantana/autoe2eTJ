@@ -93,10 +93,11 @@ def process_action_analysis_async(current_state: State, action: Action, state: S
         raise
 
 # Loop principal de crawling
+logger.info("Traversal strategy=DFS frontier=stack discipline=LIFO")
 while len(crawl_context.crawl_stack) > 0:
     state: State = crawl_context.crawl_stack.pop()
     logger.info(
-        f"DFS visiting depth={len(state.crawl_path)} "
+        f"DFS pop (LIFO) visiting depth={len(state.crawl_path)} "
         f"state={state.get_id(StateIdEvaluator.BY_ACTIONS)} "
         f"pending={len(crawl_context.crawl_stack)}"
     )
@@ -163,7 +164,8 @@ while len(crawl_context.crawl_stack) > 0:
                     crawl_context.crawl_stack.push(new_state)
                     crawl_context.state_machine.add_state_from_current_state(new_state, action)
                     logger.info(
-                        f"DFS pushed state; pending={len(crawl_context.crawl_stack)}"
+                        f"DFS push state (next to pop); "
+                        f"pending={len(crawl_context.crawl_stack)}"
                     )
                 else:
                     should_extract_func = False

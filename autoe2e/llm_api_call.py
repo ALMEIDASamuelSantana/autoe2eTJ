@@ -48,10 +48,12 @@ def create_model_chain(model):
 
 
 if os.getenv("AUTOE2E_LLM_PROVIDER", "").lower() == "google":
+    gemini_model = os.getenv("AUTOE2E_GEMINI_MODEL", "gemini-3.1-flash-lite")
     gemini_flash = ChatGoogleGenerativeAI(
-        model=os.getenv("AUTOE2E_GEMINI_MODEL", "gemini-3.1-flash-lite"),
+        model=gemini_model,
         temperature=0
     )
+    logger.info(f"LLM provider=Google Gemini model={gemini_model}")
     gemini_embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
     primary_chain = create_model_chain(gemini_flash)
     gemini_chain = primary_chain
@@ -84,10 +86,12 @@ elif os.getenv("OPENAI_API_KEY"):
     sonnet_chain = primary_chain
     haiku_chain = primary_chain
 else:
+    gemini_model = os.getenv("AUTOE2E_GEMINI_MODEL", "gemini-3.1-flash-lite")
     gemini_flash = ChatGoogleGenerativeAI(
-        model=os.getenv("AUTOE2E_GEMINI_MODEL", "gemini-3.1-flash-lite"),
+        model=gemini_model,
         temperature=0
     )
+    logger.info(f"LLM provider=Google Gemini model={gemini_model}")
     gemini_embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
     gpt4o = ChatOpenAI(model="gpt-4o", max_tokens=256, temperature=0)
     gpt35 = ChatOpenAI(model="gpt-3.5-turbo", max_tokens=256, temperature=0)
